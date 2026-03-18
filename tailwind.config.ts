@@ -100,11 +100,26 @@ export default {
           "0%": { backgroundPosition: "200% 0" },
           "100%": { backgroundPosition: "-200% 0" },
         },
+        fadeInUp: {
+          from: { opacity: "0", transform: "translateY(24px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        scaleIn: {
+          from: { opacity: "0", transform: "scale(0.92)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        pulseGlow: {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.85" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         shimmer: "shimmer 1.8s linear infinite",
+        "fade-in-up": "fadeInUp 0.6s ease-out both",
+        "scale-in": "scaleIn 0.5s ease-out both",
+        "pulse-glow": "pulseGlow 2.5s ease-in-out infinite",
       },
     },
   },

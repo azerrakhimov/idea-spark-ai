@@ -127,10 +127,12 @@
 
   .workspace-panel {
     @apply rounded-[calc(var(--radius)+0.25rem)] border border-border/70 bg-panel text-panel-foreground shadow-soft backdrop-blur-sm;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
   }
 
   .workspace-muted {
     @apply rounded-3xl border border-border/70 bg-surface p-4 text-surface-foreground shadow-soft;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
   }
 
   .workspace-label {
@@ -143,6 +145,11 @@
 
   .floating-composer {
     @apply rounded-[2rem] border border-border/70 bg-background p-5 shadow-soft sm:p-6;
+    transition: box-shadow 0.3s ease;
+  }
+
+  .floating-composer:focus-within {
+    box-shadow: var(--shadow-glow);
   }
 
   .thinking-bar {
@@ -156,5 +163,52 @@
 @layer utilities {
   .font-display {
     font-family: 'Inter', sans-serif;
+  }
+
+  /* === Entrance animations === */
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out both;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.5s ease-out both;
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2.5s ease-in-out infinite;
+  }
+}
+
+/* === Keyframes === */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 16px 4px hsl(var(--primary) / 0.35);
   }
 }
