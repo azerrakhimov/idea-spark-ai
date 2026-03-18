@@ -30,7 +30,7 @@ const sampleText = `Müştəri ilə keçirilən görüşdə yeni onboarding axı
 
 const Index = () => {
   const { toast } = useToast();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [content, setContent] = useState(sampleText);
   const [mode, setMode] = useState<AnalysisMode>("summary");
   const [isLoading, setIsLoading] = useState(false);
@@ -267,3 +267,4 @@ const Index = () => {
 };
 
 export default Index;
+
