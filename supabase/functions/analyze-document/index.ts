@@ -47,64 +47,55 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not configured");
     }
 
     const selectedPrompt = prompts[mode as AnalysisMode];
 
-    const gatewayResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        temperature: 0.35,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a precise document analysis assistant. Always reply in Azerbaijani. Be structured, practical, and direct. Never mention internal reasoning.",
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `${selectedPrompt.instructions}\n\nSistem təlimatı: Siz sənəd analizi üzrə peşəkar asistansınız. Həmişə Azərbaycan dilində cavab verin. Strukturlaşdırılmış, praktiki və birbaşa olun.\n\nAnaliz edilməli sənəd:\n${content.trim()}`,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.35,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 2048,
           },
-          {
-            role: "user",
-            content: `${selectedPrompt.instructions}\n\nDocument to analyze:\n${content.trim()}`,
-          },
-        ],
-      }),
-    });
-
-    if (!gatewayResponse.ok) {
-      if (gatewayResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "AI limiti doldu, bir az sonra yenidən cəhd edin." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        }),
       }
+    );
 
-      if (gatewayResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "AI krediti kifayət etmir. Workspace usage bölməsini yoxlayın." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const details = await gatewayResponse.text();
-      console.error("AI gateway error:", gatewayResponse.status, details);
-      return new Response(JSON.stringify({ error: "AI analizi alınarkən xəta baş verdi." }), {
+    if (!geminiResponse.ok) {
+      const details = await geminiResponse.text();
+      console.error("Gemini API error:", geminiResponse.status, details);
+      return new Response(JSON.stringify({ error: "Gemini analizi alınarkən xəta baş verdi." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = await gatewayResponse.json();
-    const analysis = data.choices?.[0]?.message?.content?.trim();
+    const data = await geminiResponse.json();
+    const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
     if (!analysis) {
-      throw new Error("AI response did not include analysis content");
+      throw new Error("Gemini response did not include analysis content");
     }
 
     return new Response(
@@ -115,7 +106,7 @@ serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      }
     );
   } catch (error) {
     console.error("analyze-document error:", error);
@@ -126,7 +117,7 @@ serve(async (req) => {
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      }
     );
   }
 });
