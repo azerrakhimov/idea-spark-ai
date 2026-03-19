@@ -76,26 +76,39 @@ serve(async (req) => {
             temperature: 0.35,
             topP: 0.95,
             topK: 40,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 4096, // Increased from 2048 to allow longer responses
           },
         }),
       }
     );
 
+    const data = await geminiResponse.json();
+
     if (!geminiResponse.ok) {
-      const details = await geminiResponse.text();
-      console.error("Gemini API error:", geminiResponse.status, details);
-      return new Response(JSON.stringify({ error: "Gemini analizi alınarkən xəta baş verdi." }), {
-        status: 500,
+      console.error("Gemini API error status:", geminiResponse.status);
+      console.error("Gemini API error details:", JSON.stringify(data, null, 2));
+      
+      const errorMessage = data.error?.message || "Gemini analizi alınarkən xəta baş verdi.";
+      return new Response(JSON.stringify({ error: errorMessage }), {
+        status: geminiResponse.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = await geminiResponse.json();
-    const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    const candidate = data.candidates?.[0];
+    const analysis = candidate?.content?.parts?.[0]?.text?.trim();
 
     if (!analysis) {
-      throw new Error("Gemini response did not include analysis content");
+      console.error("No analysis in Gemini response:", JSON.stringify(data, null, 2));
+      
+      // Check for blocked content or other reasons
+      if (candidate?.finishReason === "SAFETY") {
+        throw new Error("Məzmun təhlükəsizlik filtrinə görə bloklandı.");
+      } else if (candidate?.finishReason === "MAX_TOKENS") {
+        throw new Error("Analiz üçün kifayət qədər yer qalmadı (token limiti).");
+      }
+      
+      throw new Error("Gemini cavabında analiz tapılmadı.");
     }
 
     return new Response(
@@ -103,6 +116,7 @@ serve(async (req) => {
         analysis,
         mode,
         title: selectedPrompt.title,
+        finishReason: candidate?.finishReason,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
