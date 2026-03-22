@@ -25,31 +25,33 @@ const prompts: Record<AnalysisMode, { title: string; instructions: string }> = {
   },
 };
 
+// Always returns HTTP 200 — errors are inside the JSON body { error: "..." }
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const respond = (body: object) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
     const { content, mode = "summary" } = await req.json();
 
     if (typeof content !== "string" || content.trim().length < 80) {
-      return new Response(JSON.stringify({ error: "Analiz üçün ən azı 80 simvolluq mətn lazımdır." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond({ error: "Analiz üçün ən azı 80 simvolluq mətn lazımdır." });
     }
 
     if (!(mode in prompts)) {
-      return new Response(JSON.stringify({ error: "Yanlış analiz modu göndərildi." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond({ error: "Yanlış analiz modu göndərildi." });
     }
 
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is not configured");
+      console.error("GEMINI_API_KEY env var is not set!");
+      return respond({ error: "AI açarı konfiqurasiya edilməyib. Zəhmət olmasa administratorla əlaqə saxlayın." });
     }
 
     const selectedPrompt = prompts[mode as AnalysisMode];
@@ -58,9 +60,7 @@ serve(async (req) => {
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [
             {
@@ -76,7 +76,7 @@ serve(async (req) => {
             temperature: 0.35,
             topP: 0.95,
             topK: 40,
-            maxOutputTokens: 4096, // Increased from 2048 to allow longer responses
+            maxOutputTokens: 4096,
           },
         }),
       }
@@ -85,53 +85,33 @@ serve(async (req) => {
     const data = await geminiResponse.json();
 
     if (!geminiResponse.ok) {
-      console.error("Gemini API error status:", geminiResponse.status);
-      console.error("Gemini API error details:", JSON.stringify(data, null, 2));
-      
-      const errorMessage = data.error?.message || "Gemini analizi alınarkən xəta baş verdi.";
-      return new Response(JSON.stringify({ error: errorMessage }), {
-        status: geminiResponse.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const errMsg = data?.error?.message || "Gemini API xətası baş verdi.";
+      console.error("Gemini API error:", geminiResponse.status, errMsg);
+      return respond({ error: errMsg });
     }
 
     const candidate = data.candidates?.[0];
     const analysis = candidate?.content?.parts?.[0]?.text?.trim();
 
     if (!analysis) {
-      console.error("No analysis in Gemini response:", JSON.stringify(data, null, 2));
-      
-      // Check for blocked content or other reasons
-      if (candidate?.finishReason === "SAFETY") {
-        throw new Error("Məzmun təhlükəsizlik filtrinə görə bloklandı.");
-      } else if (candidate?.finishReason === "MAX_TOKENS") {
-        throw new Error("Analiz üçün kifayət qədər yer qalmadı (token limiti).");
-      }
-      
-      throw new Error("Gemini cavabında analiz tapılmadı.");
+      const reason = candidate?.finishReason;
+      console.error("Empty Gemini response. finishReason:", reason, JSON.stringify(data));
+      if (reason === "SAFETY") return respond({ error: "Məzmun təhlükəsizlik filtrinə görə bloklandı." });
+      if (reason === "MAX_TOKENS") return respond({ error: "Mətn çox uzundur, xahiş edirik qısaldın." });
+      return respond({ error: "Gemini cavabında mətn tapılmadı." });
     }
 
-    return new Response(
-      JSON.stringify({
-        analysis,
-        mode,
-        title: selectedPrompt.title,
-        finishReason: candidate?.finishReason,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return respond({
+      analysis,
+      mode,
+      title: selectedPrompt.title,
+      finishReason: candidate?.finishReason,
+    });
+
   } catch (error) {
-    console.error("analyze-document error:", error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Naməlum xəta",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    console.error("analyze-document unhandled error:", error);
+    return respond({
+      error: error instanceof Error ? error.message : "Naməlum xəta baş verdi.",
+    });
   }
 });

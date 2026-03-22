@@ -28,6 +28,11 @@ export async function analyzeDocument({ content, mode }: AnalysisRequest): Promi
     throw new Error(error.message || fallbackMessages[mode]);
   }
 
+  // Handle the error field inside the 200 OK response
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
   if (!data?.analysis) {
     throw new Error(fallbackMessages[mode]);
   }
